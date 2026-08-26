@@ -27,10 +27,29 @@ def load_config():
         return json.load(f)
 
 
+def fetch_json():
+    """直连 JustLend API；若被拦截(403/超时)则回退到 r.jina.ai 代理抓取（云端 IP 也能用）。"""
+    # 1) 直连
+    try:
+        req = urllib.request.Request(API_URL, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as direct_err:
+        # 2) 回退：Jina Reader 代理
+        jina_url = "https://r.jina.ai/" + API_URL
+        req = urllib.request.Request(jina_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            txt = resp.read().decode("utf-8", errors="replace")
+        idx = txt.find("Markdown Content:")
+        seg = txt[idx + len("Markdown Content:"):].strip() if idx != -1 else txt
+        try:
+            return json.loads(seg)
+        except Exception:
+            raise RuntimeError("direct: %s; jina parse failed: %s" % (direct_err, seg[:200]))
+
+
 def get_borrow_apy():
-    req = urllib.request.Request(API_URL, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+    data = fetch_json()
     for t in data.get("data", {}).get("tokenList", []):
         if t.get("address") == JTARGET:
             # borrowRate is annualized borrow APR (decimal). Convert to APY via compounding.
@@ -50,11 +69,12 @@ def main():
     try:
         apr, apy, info = get_borrow_apy()
     except Exception as e:
+        # 抓取失败：打印错误并正常退出，避免阻断 workflow 中其他监控
         print(json.dumps({"ok": False, "step": "fetch", "error": str(e)}, ensure_ascii=False))
-        sys.exit(1)
+        sys.exit(0)
     if info is None:
         print(json.dumps({"ok": False, "step": "token", "error": "jUSDT not found"}, ensure_ascii=False))
-        sys.exit(1)
+        sys.exit(0)
     apy_pct = apy * 100
     apr_pct = apr * 100
     result = {"ok": True, "time": now, "borrow_apr_pct": round(apr_pct, 4), "borrow_apy_pct": round(apy_pct, 4), "threshold": THRESHOLD, "triggered": apy_pct > THRESHOLD}
