@@ -3,52 +3,51 @@ name: crypto-monitors
 # 每 30 分钟运行一次所有监控（UTC，与本地时区无关，仅需固定频率）
 on:
   schedule:
-      - cron: '*/30 * * * *'
-        # 支持在 Actions 页面手动触发一次（用于测试）
-          workflow_dispatch: {}
+    - cron: '*/30 * * * *'
+  # 支持在 Actions 页面手动触发一次（用于测试）
+  workflow_dispatch: {}
 
-          jobs:
-            run-monitors:
-                runs-on: ubuntu-latest
-                    timeout-minutes: 10
-                        steps:
-                              - uses: actions/checkout@v4
+jobs:
+  run-monitors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
 
-                                    # 恢复 Gate 公告已见状态（跨运行去重，避免重复推送）
-                                          - name: Restore seen state
-                                                  uses: actions/cache@v4
-                                                          with:
-                                                                    path: gate_usd1_seen.json
-                                                                              key: gate-seen-${{ github.run_id }}
-                                                                                        restore-keys: |
-                                                                                                    gate-seen-
-                                                                                                    
-                                                                                                          - uses: actions/setup-python@v5
-                                                                                                                  with:
-                                                                                                                            python-version: '3.12'
-                                                                                                                            
-                                                                                                                                  - name: Run all monitors
-                                                                                                                                          env:
-                                                                                                                                                    SMTP_HOST: smtp.qq.com
-                                                                                                                                                              SMTP_PORT: '465'
-                                                                                                                                                                        SMTP_USER: ${{ secrets.SMTP_USER }}
-                                                                                                                                                                                  SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-                                                                                                                                                                                            SMTP_TO: ${{ secrets.SMTP_TO }}
-                                                                                                                                                                                                    run: |
-                                                                                                                                                                                                              echo "== JustLend USDT 借款利率 =="
-                                                                                                                                                                                                                        python justlend_monitor.py
-                                                                                                                                                                                                                                  echo "== USDD PSM (TRON) 可用量 =="
-                                                                                                                                                                                                                                            python usdd_psm_monitor.py
-                                                                                                                                                                                                                                                      echo "== USDD PSM (BSC) 可用量 =="
-                                                                                                                                                                                                                                                                python usdd_psm_bsc_monitor.py
-                                                                                                                                                                                                                                                                          echo "== Gate USD1 公告 =="
-                                                                                                                                                                                                                                                                                    python gate_usd1_monitor.py
-                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                          # 保存 Gate 已见状态，供下一次运行去重
-                                                                                                                                                                                                                                                                                                - name: Save seen state
-                                                                                                                                                                                                                                                                                                        if: always()
-                                                                                                                                                                                                                                                                                                                uses: actions/cache@v4
-                                                                                                                                                                                                                                                                                                                        with:
-                                                                                                                                                                                                                                                                                                                                  path: gate_usd1_seen.json
-                                                                                                                                                                                                                                                                                                                                            key: gate-seen-${{ github.run_id }}
-                                                                                                                                                                                                                                                                                                                                            
+      # 恢复 Gate 公告已见状态（跨运行去重，避免重复推送）
+      - name: Restore seen state
+        uses: actions/cache@v4
+        with:
+          path: gate_usd1_seen.json
+          key: gate-seen-${{ github.run_id }}
+          restore-keys: |
+            gate-seen-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run all monitors
+        env:
+          SMTP_HOST: smtp.qq.com
+          SMTP_PORT: '465'
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+        run: |
+          echo "== JustLend USDT 借款利率 =="
+          python justlend_monitor.py
+          echo "== USDD PSM (TRON) 可用量 =="
+          python usdd_psm_monitor.py
+          echo "== USDD PSM (BSC) 可用量 =="
+          python usdd_psm_bsc_monitor.py
+          echo "== Gate USD1 公告 =="
+          python gate_usd1_monitor.py
+
+      # 保存 Gate 已见状态，供下一次运行去重
+      - name: Save seen state
+        if: always()
+        uses: actions/cache@v4
+        with:
+          path: gate_usd1_seen.json
+          key: gate-seen-${{ github.run_id }}
