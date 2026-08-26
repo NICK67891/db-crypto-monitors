@@ -36,13 +36,13 @@ jobs:
           SMTP_TO: ${{ secrets.SMTP_TO }}
         run: |
           echo "== JustLend USDT 借款利率 =="
-          python justlend_monitor.py
+          python justlend_monitor.py || true
           echo "== USDD PSM (TRON) 可用量 =="
-          python usdd_psm_monitor.py
+          python usdd_psm_monitor.py || true
           echo "== USDD PSM (BSC) 可用量 =="
-          python usdd_psm_bsc_monitor.py
+          python usdd_psm_bsc_monitor.py || true
           echo "== Gate USD1 公告 =="
-          python gate_usd1_monitor.py
+          python gate_usd1_monitor.py || true
 
       # 保存 Gate 已见状态，供下一次运行去重
       - name: Save seen state
